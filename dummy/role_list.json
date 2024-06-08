@@ -1,0 +1,20 @@
+{
+    "roleList": [
+        {
+            "name": "Admin",
+            "role":1
+        },
+        {
+            "name": "Management",
+            "role":2
+        },
+        {
+            "name": "Head Office",
+            "role":3
+        },
+        {
+            "name": "User",
+            "role":4
+        }
+    ]
+}

@@ -1,0 +1,28 @@
+{
+    "userList": [
+        {
+            "id": 1,
+            "username": "user01",
+            "password": "user01",
+            "role":1
+        },
+        {
+            "id": 2,
+            "username": "user02",
+            "password": "user02",
+            "role":2
+        },
+        {
+            "id": 3,
+            "username": "user03",
+            "password": "user03",
+            "role":3
+        },
+        {
+            "id": 4,
+            "username": "user04",
+            "password": "user04",
+            "role":4
+        }
+    ]
+}
