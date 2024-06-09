@@ -2,9 +2,14 @@ import json
 import os
 import jwt
 
-from functools import wraps
-from flask import Flask, jsonify, request, current_app
+from flask import Flask, request
 from flask_cors import CORS
+from datetime import timedelta
+
+from flask_jwt_extended import (
+    JWTManager, jwt_required, get_jwt,
+    create_access_token
+)
 
 from common.logger import Logger
 from common.ret import Ret
@@ -18,48 +23,19 @@ logger = Logger().setup_logging()
 
 SECRET_KEY = os.environ.get('SECRET_KEY')
 app.config['SECRET_KEY'] = SECRET_KEY
+ACCESS_EXPIRES = timedelta(minutes=15)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = ACCESS_EXPIRES
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        current_user = None
-        try:
-            # JWT is passed in the request header
-            if "Authorization" in request.headers:
-                token = request.headers["Authorization"].split(" ")[1]
-            # return 401 if token is not passed
-            if not token:
-                return jsonify({"message": "Token is missing !!"}), 401
-            
-            # decoding the payload to fetch the stored details
-            # key_text = ""
-            # cur_path = os.path.dirname(__file__)
-            # public_key = f"{cur_path}\\Keys\\publicKey.pem"
-            # with open(public_key, "r", encoding="UTF-8") as key_file:
-            #     key_text = key_file.read()
-            # key = "\n".join([l.lstrip() for l in key_text.split("\n")])
-            # options = {
-            #     "verify_exp": False,
-            # }
-            # data = jwt.decode(token, key, algorithms=["RS256"], options=options)
+app.config['JWT_BLACKLIST_ENABLED'] = True
+app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access']
 
-            data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=["RS256"], options={"verify_signature": False})
+jwt = JWTManager(app)
 
-            if data is None:
-                return {
-                "message": "Invalid Authentication token!",
-                "data": None,
-                "error": "Unauthorized"
-            }, 401
+BLOCKLIST = set()
 
-            current_user = {"user_id": data['user_id']}
-        except Exception as ex:
-            return jsonify({"message": "Token is invalid !!"}), 401
-        # returns the current logged in users context to the routes
-        return f(current_user, *args, **kwargs)
-
-    return decorated
+@jwt.token_in_blocklist_loader
+def check_if_token_in_blocklist(jwt_header, jwt_payload):
+    return jwt_payload["jti"] in BLOCKLIST
 
 @app.route('/', methods=["GET"])
 def hello_world():
@@ -85,16 +61,10 @@ def login():
         user_info = next(item for item in user_list['userList'] if item["username"] == data_request['username'])
         if user_info:
             try:
-                # token should expire after 24 hrs
-                user_info["token"] = jwt.encode(
-                    {"user_id": user_info["id"], "user_name": user_info["username"]},
-                    app.config["SECRET_KEY"],
-                    algorithm="HS256"
-                )
                 ret.data = {
-                    "message": "Successfully fetched auth token",
-                    "data": user_info
+                    'access_token': create_access_token(identity=user_info)
                 }
+                return json.dumps(ret.__dict__)
             except Exception as e:
                 ret = utilities.catchEx(logger, err)
         else:
@@ -105,31 +75,33 @@ def login():
         ret = utilities.catchEx(logger, err)
     return json.dumps(ret.__dict__)
 
-@app.route('/logout', methods=['GET'])
-@token_required
-def logout(current_user):
-    ret: Ret = Ret()
-    try:
-        ret.data = "Logout success!"
-    except Exception as err:
-        ret = utilities.catchEx(logger, err)
-    return json.dumps(ret.__dict__)
+@app.route("/logout", methods=["DELETE"])
+@jwt_required()
+def logout():
+    jti = get_jwt()["jti"]
+    BLOCKLIST.add(jti)
+    return {"message": "Successfully logged out"}, 200
+
 
 @app.route('/user-list', methods=["GET"])
-@token_required
-def user_list(current_user):
+@jwt_required()
+def user_list():
     ret: Ret = Ret()
     try:
+        current_user = get_jwt()
+        print(current_user)
         ret.data = utilities.load_json_file("user_list.json")
     except Exception as err:
         ret = utilities.catchEx(logger, err)
     return json.dumps(ret.__dict__)
 
 @app.route('/role-list', methods=["GET"])
-@token_required
-def role_list(current_user):
+@jwt_required()
+def role_list():
     ret: Ret = Ret()
     try:
+        current_user = get_jwt()
+        print(current_user)
         data = utilities.load_json_file("role_list.json")
         ret.data= data['roleList']
     except Exception as err:
