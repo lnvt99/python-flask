@@ -15,6 +15,8 @@ from common.logger import Logger
 from common.ret import Ret
 from common import utilities
 
+from service import home_service
+
 app = Flask(__name__)
 CORS(app)
 
@@ -104,6 +106,15 @@ def role_list():
         print(current_user)
         data = utilities.load_json_file("role_list.json")
         ret.data= data['roleList']
+    except Exception as err:
+        ret = utilities.catchEx(logger, err)
+    return json.dumps(ret.__dict__)
+
+@app.route('/get-data', methods=["GET"])
+def get_data():
+    ret: Ret = Ret()
+    try:
+        ret.data = home_service.get_data()
     except Exception as err:
         ret = utilities.catchEx(logger, err)
     return json.dumps(ret.__dict__)
